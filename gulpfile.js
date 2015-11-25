@@ -12,6 +12,7 @@ var gulp = require('gulp'),
 	browserify = require('browserify'),
 	babel = require('gulp-babel'),
 	babelify = require('babelify'),
+	tsify = require('tsify'),
 	watchify = require('watchify'),
 	uglify = require('gulp-uglify'),
 	buffer = require('vinyl-buffer'),
@@ -48,6 +49,15 @@ function mapLog(msg) { gutil.log('Script updated: '+chalk.blue.bold(msg)); }
 
 gulp.task('babelify', function(){
 	watchifyBuilder(babelify, './app/entry.js', 'bundle.js', {presets: ["es2015", "stage-0"]}, true);
+});
+
+gulp.task('tsify', function () {
+	var entryPoint = './app/entry.ts', filename = 'bundle.js',
+			bundler = watchify(browserify(entryPoint)).plugin('tsify');
+	bundleScript(bundler, filename);
+	bundler.on('update', function () {
+		bundleScript(bundler, filename);
+	}).on('log', mapLog);
 });
 
 function watchifyBuilder(compressor, entryPoint, filename, options, uglifyDisable) {
@@ -101,4 +111,4 @@ gulp.task('nodemon', function (callback) {
 	});
 });
 
-gulp.task('default', ['style-bundle', 'babelify', 'browser-sync']);
+gulp.task('default', ['style-bundle', 'tsify', 'browser-sync']);

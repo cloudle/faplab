@@ -1,4 +1,17 @@
-let App = angular.module('application', []);
+import 'reflect-metadata'
+import {Component, bootstrap} from 'angular2/angular2'
 
-angular.bootstrap(document, ['application']);
-console.log('Done!');
+@Component({
+    selector: "application",
+    template: `
+        <h1>Hello Angular 2!</h1>
+    `
+})
+
+class AppComponent {
+    constructor() {
+
+    }
+}
+
+bootstrap(AppComponent);
