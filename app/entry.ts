@@ -1,17 +1,9 @@
+import 'zone.js'
 import 'reflect-metadata'
-import {Component, bootstrap} from 'angular2/angular2'
+import {Component, bootstrap, provide} from 'angular2/angular2'
+import {ROUTER_PROVIDERS, LocationStrategy, HashLocationStrategy} from 'angular2/router';
+import {ROUTER_DIRECTIVES, RouteConfig, Router, Location, Route} from 'angular2/router';
 
-@Component({
-  selector: "application",
-  template: `
-        <h1>Hello Angular 2!</h1>
-    `
-})
+import AppComponent from './components/application'
 
-class AppComponent {
-  constructor() {
-
-  }
-}
-
-bootstrap(AppComponent);
+bootstrap(AppComponent, [ROUTER_PROVIDERS, provide(LocationStrategy, {useClass: HashLocationStrategy})]);
