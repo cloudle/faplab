@@ -1,12 +1,8 @@
 var gulp = require('gulp'),
-  gutil = require('gulp-util'),
-  chalk = require('chalk'),
-  order = require('gulp-order'),
-  rename = require('gulp-rename'),
+  helpers = require('./gulp/helpers'),
+  vendors = require('./gulp/vendor'),
   merge = require('utils-merge'),
-  gulpIf = require('gulp-if'),
   concat = require('gulp-concat'),
-  source = require('vinyl-source-stream'),
   sourcemaps = require('gulp-sourcemaps'),
   nodemon = require('gulp-nodemon'),
   browserify = require('browserify'),
@@ -15,8 +11,7 @@ var gulp = require('gulp'),
   babelify = require('babelify'),
   tsify = require('tsify'),
   watchify = require('watchify'),
-  uglify = require('gulp-uglify'),
-  buffer = require('vinyl-buffer'),
+  nodeResolve = require('resolve'),
   browserSync = require('browser-sync').create(),
 
   stylus = require('gulp-stylus'),
@@ -25,71 +20,52 @@ var gulp = require('gulp'),
   jeet = require('jeet'),
   rupture = require('rupture');
 
-function mapError(err) {
-  if (err.fileName) {
-    gutil.log(chalk.red(err.name)
-      + ': '
-      + chalk.yellow(err.fileName.replace(__dirname, ''))
-      + ': '
-      + 'Line '
-      + chalk.magenta(err.lineNumber)
-      + ' & '
-      + 'Column '
-      + chalk.magenta(err.columnNumber || err.column)
-      + ': '
-      + chalk.blue(err.message || err.description))
-  } else {
-    gutil.log(chalk.red(err.name)
-      + ': '
-      + chalk.yellow(err.message, err.toString()))
-  }
-  this.emit('end');
-}
+gulp.task('bundle-scripts', function () {
+  var entryPoint = './app/entry.ts', filename = 'bundle.js',
+      browserifyInstance = browserifyInc(entryPoint, {
+        cacheFile: './build/browserify-cache.json'
+      });
 
-function mapLog(msg) { gutil.log('Script updated: '+chalk.blue.bold(msg)); }
+  vendors.nodeModules.forEach(function (lib) {
+    browserifyInstance.external(lib);
+  });
+
+  var bundler = watchify(browserifyInstance).plugin('tsify');
+
+  helpers.bundleScript(bundler, filename, browserSync);
+  bundler.on('update', function () {
+    helpers.bundleScript(bundler, filename, browserSync);
+  }).on('log', helpers.mapLog);
+});
+
+gulp.task('bundle-vendors', function() {
+  var filename = 'vendor.js', browserifyInstance = browserify({});
+  vendors.nodeModules.forEach(function (lib) {
+    browserifyInstance.require(nodeResolve.sync(lib), {expose: lib})
+  });
+  helpers.bundleScript(browserifyInstance, filename, browserSync);
+});
 
 gulp.task('babelify', function(){
   watchifyBuilder(babelify, './app/entry.js', 'bundle.js', {presets: ["es2015", "stage-0"]}, true);
 });
 
-gulp.task('tsify', function () {
-  var entryPoint = './app/entry.ts', filename = 'bundle.js',
-      bundler = watchify(browserifyInc(entryPoint, {
-        cacheFile: './build/browserify-cache.json'
-      })).plugin('tsify');
-
-  bundleScript(bundler, filename);
-  bundler.on('update', function () {
-    bundleScript(bundler, filename);
-  }).on('log', mapLog);
-});
-
 function watchifyBuilder(compressor, entryPoint, filename, options, uglifyDisable) {
   var args = merge(watchify.args, { debug: true, cacheFile: './build/browserify-cache.json' });
-  var bundler = watchify(browserify(entryPoint, args)).transform(compressor, options);
-  bundleScript(bundler, filename, uglifyDisable);
+  var bundler = watchify(browserifyInc(entryPoint, args)).transform(compressor, options);
+  helpers.bundleScript(bundler, filename, browserSync, uglifyDisable);
   bundler.on('update', function(){
-    bundleScript(bundler, filename, uglifyDisable);
-  }).on('log', mapLog)
-}
-
-function bundleScript(bundler, filename, uglifyDisable) {
-  return bundler.bundle()
-    .on('error', mapError)
-    .pipe(source(filename))
-    .pipe(buffer())
-    .pipe(sourcemaps.init({ loadMaps: true }))
-    .pipe(gulpIf(!uglifyDisable, uglify()))
-    .pipe(sourcemaps.write())
-    .pipe(gulp.dest('./build'))
-    .pipe(browserSync.stream())
+    helpers.bundleScript(bundler, filename, browserSync, uglifyDisable);
+  }).on('log', helpers.mapLog)
 }
 
 gulp.task("clone-templates", function () {
-  gulp.src(['./app/**/*.html']).pipe(gulp.dest('./build')).pipe(browserSync.stream());
+  gulp.src(['./app/**/*.html'])
+    .pipe(gulp.dest('./build'))
+    .pipe(browserSync.stream());
 });
 
-gulp.task('style-bundle', function() {
+gulp.task('bundle-styles', function() {
   gulp.src(['./app/styles/entry.styl'])
     .pipe(sourcemaps.init())
     .pipe(stylus(stylus({use: [nib(), jeet(), rupture()]})))
@@ -120,4 +96,4 @@ gulp.task('nodemon', function (callback) {
   });
 });
 
-gulp.task('default', ['clone-templates', 'style-bundle', 'tsify', 'browser-sync']);
+gulp.task('default', ['clone-templates', 'bundle-styles', 'bundle-scripts', 'browser-sync']);
